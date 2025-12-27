@@ -99,7 +99,7 @@ def upload_to_mysql(df, table_name, db_name="demo", user="root", password="Adi05
 # CUSTOMER DATA CLEANING
 # =================================================
 print("\n---- CUSTOMERS DATA ----")
-cust_file = r"C:\Users\Lenovo\OneDrive\Documents\GitHub\customers_raw.csv"
+cust_file = r"C:\Users\Lenovo\OneDrive\Documents\GitHub\Data\customers_raw.csv"
 
 clean_cust_df = read_raw_data(cust_file)
 clean_cust_df = handle_missing_val(clean_cust_df)
@@ -149,7 +149,7 @@ if "customer_id" in clean_cust_df.columns:
 # PRODUCT DATA CLEANING
 # =================================================
 print("\n---- PRODUCTS DATA ----")
-prod_file = r"C:\Users\Lenovo\OneDrive\Documents\GitHub\Product_raw.csv"
+prod_file = r"C:\Users\Lenovo\OneDrive\Documents\GitHub\Data\Product_raw.csv"
 
 clean_prod_df = read_raw_data(prod_file)
 clean_prod_df = handle_missing_val(clean_prod_df)
@@ -170,12 +170,14 @@ if "product_id" in clean_prod_df.columns:
     )
 
 
-
+#--------------------------------------
+# SALES DATA
+#--------------------------------------
 print("---- SALES DATA ----")
 
 # 1. Read CSV file
 sales_df = pd.read_csv(
-    r"C:\Users\Lenovo\OneDrive\Documents\GitHub\sales_raw.csv"
+    r"C:\Users\Lenovo\OneDrive\Documents\GitHub\Data\sales_raw.csv"
 )
 
 # 2. Remove duplicate rows
