@@ -1,155 +1,263 @@
-# etl_pipeline.py
-# -----------------------------
-# Import libraries
-# -----------------------------
+# =================================================
+# IMPORT LIBRARIES
+# =================================================
 import pandas as pd
 import numpy as np
 import phonenumbers
+import mysql.connector
 
-# -----------------------------
-# Function to Read CSV file
-# -----------------------------
+# =================================================
+# READ CSV FILE
+# =================================================
 def read_raw_data(file_path):
-    df = pd.read_csv(file_path)
-    return df
+    return pd.read_csv(file_path)
 
-# ---------------------------------
-# Function to handle misssing values
-# ---------------------------------
+
+# =================================================
+# HANDLE MISSING VALUES
+# =================================================
 def handle_missing_val(df):
-    missing_col = []
     for col in df.columns:
-        missing = df[col].isna().sum()
-        if missing > 0:
-            missing_col.append(col+ "has" + str(missing) + "missing values")
+        if df[col].isna().sum() > 0:
             if df[col].dtype in ["int64", "float64"]:
                 df[col] = df[col].fillna(df[col].median())
             else:
                 df[col] = df[col].fillna(df[col].mode()[0])
-    return df, missing_col
+    return df
+
+
+# =================================================
+# UPLOAD DATA TO MYSQL
+# =================================================
+def upload_to_mysql(df, table_name, db_name="demo", user="root", password="Adi0506tyaa@"):
+    conn = None
+    cursor = None
+    try:
+        # -----------------------------
+        # Connect to MySQL
+        # -----------------------------
+        conn = mysql.connector.connect(
+            host="localhost",
+            user=user,
+            password=password
+        )
+        cursor = conn.cursor()
+
+        # -----------------------------
+        # Create database
+        # -----------------------------
+        cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
+        cursor.execute(f"USE {db_name}")
+
+        # -----------------------------
+        # Create table dynamically
+        # -----------------------------
+        columns_sql = []
+        for col in df.columns:
+            if "date" in col.lower():
+                columns_sql.append(f"{col} DATE")
+            else:
+                if df[col].dtype in ["int64", "float64"]:
+                 columns_sql.append(f"{col} INT")
+                else:
+                 columns_sql.append(f"{col} VARCHAR(255)")
+
+
+        create_table_sql = f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            {", ".join(columns_sql)}
+        )
+        """
+        cursor.execute(create_table_sql)
+
+        # -----------------------------
+        # Prepare INSERT query
+        # -----------------------------
+        columns = ",".join(df.columns)
+        placeholders = ",".join(["%s"] * len(df.columns))
+        insert_sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
+
+        # Convert NaN → None for MySQL
+        df = df.where(pd.notnull(df), None)
+
+        cursor.executemany(insert_sql, df.values.tolist())
+        conn.commit()
+
+        print(f"Data uploaded successfully into table '{table_name}'")
+
+    except mysql.connector.Error as err:
+        print("MySQL Error:", err)
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 # =================================================
 # CUSTOMER DATA CLEANING
 # =================================================
-print("\n---- CUSTOMERs DATA ----")
+print("\n---- CUSTOMERS DATA ----")
 cust_file = r"C:\Users\Lenovo\OneDrive\Documents\GitHub\customers_raw.csv"
-df = read_raw_data(cust_file)
-print(" Data Info")
-df.info()
 
-# Handle missing values
-df, missing_report = handle_missing_val(df)
+clean_cust_df = read_raw_data(cust_file)
+clean_cust_df = handle_missing_val(clean_cust_df)
+clean_cust_df = clean_cust_df.drop_duplicates()
 
-print("\nMissing Values Report:")
-print(missing_report)
+# Remove duplicates based on email 
+if "email" in clean_cust_df.columns:
+    clean_cust_df = clean_cust_df.drop_duplicates(subset=["email"])
 
-# Remove duplicate rows
-df = df.drop_duplicates()
 
-# Registration_date column
-if "registration_date" in df.columns:
 
-    df["registration_date"] = df["registration_date"].astype(str)
-    df["registration_date"] = df["registration_date"].str.strip()
-
-    df["registration_date"] = pd.to_datetime(
-        df["registration_date"],
-        format="mixed",
-        errors="coerce"
+# Clean registration_date
+if "registration_date" in clean_cust_df.columns:
+    clean_cust_df["registration_date"] = (
+        pd.to_datetime(clean_cust_df["registration_date"], errors="coerce")
+        .dt.strftime("%Y-%m-%d")
+        .fillna("1900-01-01")
     )
 
-    df["registration_date"] = df["registration_date"].dt.strftime("%Y-%m-%d")
-
-
-# Phone colmn
-if "phone" in df.columns:
-
+# Clean phone numbers
+if "phone" in clean_cust_df.columns:
     phone_list = []
-
-    for num in df["phone"]:
+    for num in clean_cust_df["phone"]:
         try:
             phone = phonenumbers.parse(str(num), "IN")
-            phone = phonenumbers.format_number(
-                phone, phonenumbers.PhoneNumberFormat.E164
+            phone_list.append(
+                phonenumbers.format_number(phone, phonenumbers.PhoneNumberFormat.E164)
             )
-            phone_list.append(phone)
         except:
-            phone_list.append(np.nan)
-    df["phone"] = phone_list
+            phone_list.append(None)
+    clean_cust_df["phone"] = phone_list
 
+print("Customers cleaned:", clean_cust_df.shape)
 
-# Capitalize text columns
-for col in df.columns:
-    if df[col].dtype == "object":
-        df[col] = df[col].astype(str).str.title()
+# Convert customer_id from alphanumeric to INT
+if "customer_id" in clean_cust_df.columns:
+    clean_cust_df["customer_id"] = (
+        clean_cust_df["customer_id"]
+        .astype(str)
+        .str.extract(r"(\d+)")
+        .astype(int)
+    )
 
-
-print("\nCleaned Customer Data:")
-print(df.head())
-print("Final Shape:", df.shape)
 
 
 # =================================================
 # PRODUCT DATA CLEANING
 # =================================================
 print("\n---- PRODUCTS DATA ----")
-# Product file path
 prod_file = r"C:\Users\Lenovo\OneDrive\Documents\GitHub\Product_raw.csv"
 
-# Read product data
-prod_df = read_raw_data(prod_file)
-
-# Handle missing values
-clean_prod_df, missing_prod_col = handle_missing_val(prod_df)
-print("\nMissing Values Report:")
-print(missing_prod_col)
-
-# Remove duplicate rows
+clean_prod_df = read_raw_data(prod_file)
+clean_prod_df = handle_missing_val(clean_prod_df)
 clean_prod_df = clean_prod_df.drop_duplicates()
 
-# category column 
 if "category" in clean_prod_df.columns:
     clean_prod_df["category"] = clean_prod_df["category"].astype(str).str.title()
 
-print("\nCleaned Product Data:")
-print(clean_prod_df.head())
-print("Final Shape:", clean_prod_df.shape)
+print("Products cleaned:", clean_prod_df.shape)
 
-
-# =================================================
-# SALES DATA CLEANING
-# =================================================
-print("\n----- SALES DATA ----")
-
-# Sales file path
-sales_file = r"C:\Users\Lenovo\OneDrive\Documents\GitHub\sales_raw.csv"
-
-# Read sales data
-sales_df = read_raw_data(sales_file)
-print("Original Sales Shape:", sales_df.shape)
-
-# Handle missing values
-clean_sales_df, missing_sales_col = handle_missing_val(sales_df)
-print("\nMissing Values Report:")
-print(missing_sales_col)
-
-# Remove duplicates data
-clean_sales_df = clean_sales_df.drop_duplicates().copy()
-print("After removing duplicates:", clean_sales_df.shape)
-
-#  transaction_date column
-if "transaction_date" in clean_sales_df.columns:
-    clean_sales_df["transaction_date"] = clean_sales_df["transaction_date"].astype(str)
-    clean_sales_df["transaction_date"] = clean_sales_df["transaction_date"].str.strip()
-    clean_sales_df["transaction_date"] = pd.to_datetime(
-        clean_sales_df["transaction_date"],
-        format="mixed",
-        errors="coerce"
+# Convert product_id from alphanumeric to INT
+if "product_id" in clean_prod_df.columns:
+    clean_prod_df["product_id"] = (
+        clean_prod_df["product_id"]
+        .astype(str)
+        .str.extract(r"(\d+)")
+        .astype(int)
     )
-    clean_sales_df["transaction_date"] = clean_sales_df["transaction_date"].dt.strftime("%Y-%m-%d")
 
-# Now final cleaned sales data
-print("\nCleaned Sales Data:")
-print(clean_sales_df.head())
-print("Final Sales Shape:", clean_sales_df.shape)
+
+
+print("---- SALES DATA ----")
+
+# 1. Read CSV file
+sales_df = pd.read_csv(
+    r"C:\Users\Lenovo\OneDrive\Documents\GitHub\sales_raw.csv"
+)
+
+# 2. Remove duplicate rows
+sales_df = sales_df.drop_duplicates()
+
+# 3. Handle missing values
+sales_df.fillna(0, inplace=True)
+
+# 4. Convert transaction_date to order_date (FIXED)
+sales_df["order_date"] = pd.to_datetime(
+    sales_df["transaction_date"],
+    format="%d/%m/%Y",   # <-- THIS IS THE FIX
+    errors="coerce"
+).dt.strftime("%Y-%m-%d")
+
+sales_df["order_date"].fillna("1900-01-01", inplace=True)
+
+
+# 5. Convert customer_id & product_id to numbers
+sales_df["customer_id"] = (
+    sales_df["customer_id"]
+    .astype(str)
+    .str.extract(r"(\d+)")
+    .astype(int)
+)
+
+sales_df["product_id"] = (
+    sales_df["product_id"]
+    .astype(str)
+    .str.extract(r"(\d+)")
+    .astype(int)
+)
+
+# 6. Convert quantity & unit_price
+sales_df["quantity"] = sales_df["quantity"].astype(int)
+sales_df["unit_price"] = sales_df["unit_price"].astype(float)
+
+# 7. Calculate subtotal (for order_items table)
+sales_df["subtotal"] = (
+    sales_df["quantity"] * sales_df["unit_price"]
+)
+
+print("Cleaned sales rows:", sales_df.shape[0])
+
+# ----------------------------
+# Orders table data
+# ----------------------------
+orders_df = (
+    sales_df
+    .groupby(["customer_id", "order_date"], as_index=False)
+    ["subtotal"].sum()
+)
+
+orders_df.rename(
+    columns={"subtotal": "total_amount"},
+    inplace=True
+)
+
+orders_df["status"] = "Pending"
+
+print("\nOrders Data:")
+print(orders_df.head())
+
+# ----------------------------
+# Order Items table data
+# ----------------------------
+order_items_df = sales_df[
+    ["product_id", "quantity", "unit_price", "subtotal"]
+]
+
+print("\nOrder Items Data:")
+print(order_items_df.head())
+
+
+
+
+# =================================================
+# UPLOAD TO MYSQL
+# =================================================
+upload_to_mysql(clean_cust_df, "customers")
+upload_to_mysql(clean_prod_df, "products")
+upload_to_mysql(orders_df, "orders")
+upload_to_mysql(order_items_df, "order_items")
+
+
