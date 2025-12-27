@@ -8,18 +8,16 @@ After loading the data, we also write SQL queries to answer specific business qu
 ## Project Structure
 
 FlexiMart_ETL/
-│
-├── etl_pipeline.py # Main Python ETL script
-├── customers_raw.csv # Raw customer data
-├── products_raw.csv # Raw product data
-├── sales_raw.csv # Raw sales data
-├── business_queries.sql # SQL queries for business questions
-├── schema_documentation.md# Documentation of database schema
-├── data_quality_report.txt# Report on data cleaning steps
-└── README.md # Project overview and instructions
 
-markdown
-Copy code
+ ─ etl_pipeline.py # Main Python ETL script
+ ── customers_raw.csv # Raw customer data
+ ── products_raw.csv # Raw product data
+ ── sales_raw.csv # Raw sales data
+ ── business_queries.sql # SQL queries for business questions
+ ── schema_documentation.md# Documentation of database schema
+ ── data_quality_report.txt# Report on data cleaning steps
+ ── README.md # Project overview and instructions
+
 
 ## ETL Pipeline (Python)
 
@@ -120,3 +118,5 @@ Run SQL queries in MySQL to analyze business questions:
 sql
 Copy code
 source business_queries.sql;
+
+## At the end Requirements   # python dependencies
