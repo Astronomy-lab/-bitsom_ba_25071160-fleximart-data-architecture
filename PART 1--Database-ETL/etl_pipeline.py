@@ -1,21 +1,21 @@
-# =================================================
+
 # IMPORT LIBRARIES
-# =================================================
+
 import pandas as pd
 import numpy as np
 import phonenumbers
 import mysql.connector
 
-# =================================================
+
 # READ CSV FILE
-# =================================================
+
 def read_raw_data(file_path):
-    return pd.read_csv(file_path)
+ return pd.read_csv(file_path)
 
 
-# =================================================
+
 # HANDLE MISSING VALUES
-# =================================================
+
 def handle_missing_val(df):
     for col in df.columns:
         if df[col].isna().sum() > 0:
@@ -26,16 +26,16 @@ def handle_missing_val(df):
     return df
 
 
-# =================================================
+# I give you the function to upload data to MySQL
 # UPLOAD DATA TO MYSQL
-# =================================================
+
 def upload_to_mysql(df, table_name, db_name="demo", user="root", password="Adi0506tyaa@"):
     conn = None
     cursor = None
     try:
-        # -----------------------------
+     
         # Connect to MySQL
-        # -----------------------------
+       
         conn = mysql.connector.connect(
             host="localhost",
             user=user,
@@ -43,15 +43,15 @@ def upload_to_mysql(df, table_name, db_name="demo", user="root", password="Adi05
         )
         cursor = conn.cursor()
 
-        # -----------------------------
+       
         # Create database
-        # -----------------------------
+        
         cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
         cursor.execute(f"USE {db_name}")
 
-        # -----------------------------
+       
         # Create table dynamically
-        # -----------------------------
+     
         columns_sql = []
         for col in df.columns:
             if "date" in col.lower():
@@ -64,15 +64,15 @@ def upload_to_mysql(df, table_name, db_name="demo", user="root", password="Adi05
 
 
         create_table_sql = f"""
-        CREATE TABLE IF NOT EXISTS {table_name} (
+        CREATE TABLE IF NOT EXISTS {table_name} (    # Dynamic columns
             {", ".join(columns_sql)}
         )
         """
         cursor.execute(create_table_sql)
 
-        # -----------------------------
+        
         # Prepare INSERT query
-        # -----------------------------
+       
         columns = ",".join(df.columns)
         placeholders = ",".join(["%s"] * len(df.columns))
         insert_sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
@@ -95,9 +95,9 @@ def upload_to_mysql(df, table_name, db_name="demo", user="root", password="Adi05
             conn.close()
 
 
-# =================================================
+
 # CUSTOMER DATA CLEANING
-# =================================================
+
 print("\n---- CUSTOMERS DATA ----")
 cust_file = r"C:\Users\Lenovo\OneDrive\Documents\GitHub\Data\customers_raw.csv"
 
@@ -108,7 +108,6 @@ clean_cust_df = clean_cust_df.drop_duplicates()
 # Remove duplicates based on email 
 if "email" in clean_cust_df.columns:
     clean_cust_df = clean_cust_df.drop_duplicates(subset=["email"])
-
 
 
 # Clean registration_date
@@ -145,9 +144,9 @@ if "customer_id" in clean_cust_df.columns:
 
 
 
-# =================================================
+
 # PRODUCT DATA CLEANING
-# =================================================
+
 print("\n---- PRODUCTS DATA ----")
 prod_file = r"C:\Users\Lenovo\OneDrive\Documents\GitHub\Data\Product_raw.csv"
 
@@ -156,7 +155,7 @@ clean_prod_df = handle_missing_val(clean_prod_df)
 clean_prod_df = clean_prod_df.drop_duplicates()
 
 if "category" in clean_prod_df.columns:
-    clean_prod_df["category"] = clean_prod_df["category"].astype(str).str.title()
+    clean_prod_df["category"] = clean_prod_df["category"].astype(str).str.title() # Standardize category names
 
 print("Products cleaned:", clean_prod_df.shape)
 
@@ -170,9 +169,9 @@ if "product_id" in clean_prod_df.columns:
     )
 
 
-#--------------------------------------
+
 # SALES DATA
-#--------------------------------------
+
 print("---- SALES DATA ----")
 
 # 1. Read CSV file
@@ -222,9 +221,11 @@ sales_df["subtotal"] = (
 
 print("Cleaned sales rows:", sales_df.shape[0])
 
-# ----------------------------
+
+
 # Orders table data
-# ----------------------------
+print("\n---- ORDERS & ORDER ITEMS DATA ----")
+
 orders_df = (
     sales_df
     .groupby(["customer_id", "order_date"], as_index=False)
@@ -232,7 +233,7 @@ orders_df = (
 )
 
 orders_df.rename(
-    columns={"subtotal": "total_amount"},
+    columns={"subtotal": "total_amount"},  # Rename subtotal to total_amount
     inplace=True
 )
 
@@ -241,12 +242,18 @@ orders_df["status"] = "Pending"
 print("\nOrders Data:")
 print(orders_df.head())
 
-# ----------------------------
+
+
+
 # Order Items table data
-# ----------------------------
+print("\n---- ORDER ITEMS DATA ----")
 order_items_df = sales_df[
     ["product_id", "quantity", "unit_price", "subtotal"]
 ]
+order_items_df = order_items_df.sort_values(
+    by="product_id",
+    ascending=True
+).reset_index(drop=True)   # Give the query for ascending order
 
 print("\nOrder Items Data:")
 print(order_items_df.head())
@@ -254,9 +261,9 @@ print(order_items_df.head())
 
 
 
-# =================================================
+
 # UPLOAD TO MYSQL
-# =================================================
+
 upload_to_mysql(clean_cust_df, "customers")
 upload_to_mysql(clean_prod_df, "products")
 upload_to_mysql(orders_df, "orders")
