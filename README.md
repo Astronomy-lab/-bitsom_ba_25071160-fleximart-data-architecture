@@ -1,7 +1,6 @@
 # FlexiMart Data Architecture Project
 
-**Student Name:**  --Aditya Vikram Singh--  
-**Student ID:**    --bitsom_ba_25071160--  
+**Student Name:**  --Aditya Vikram Singh--   
 **Email:**         --vikadityasin@gmail.com--  
 **Date:**          --06/01/2026--  
 
